@@ -1,0 +1,10 @@
+curl + fuse
+
+currently only webdav supported
+
+deps: fuse3 libcurl libxml-2.0 (for webdav)
+
+usage: ./networkfs dav://host/path mountpoint
+       ./networkfs davs://host/path mountpoint
+
+license: GPL-2+
