@@ -42,6 +42,7 @@ struct _networkfs_opts {
   char *scheme;
   char *port;
 
+  bool proxyanyauth;
   bool proxybasic;
   bool proxydigest;
   bool proxyntlm;
@@ -88,7 +89,7 @@ static const struct fuse_opt option_spec[] = {
 
   NETWORKFS_OPT_KEY("proxy=%s",      proxy),
   NETWORKFS_OPT_KEY("proxytunnel",   proxytunnel),
-  NETWORKFS_OPT("proxy_anyauth",     proxyauth, CURLAUTH_ANY),
+  NETWORKFS_OPT_KEY("proxy_anyauth", proxyanyauth),
   NETWORKFS_OPT_KEY("proxy_basic",   proxybasic),
   NETWORKFS_OPT_KEY("proxy_digest",  proxydigest),
   NETWORKFS_OPT_KEY("proxy_ntlm",    proxyntlm),
@@ -401,14 +402,18 @@ int main (int argc, char *argv[]) {
       replace_password(argc, argv);
     }
 
-    if (options.proxybasic) {
-      options.proxyauth |= CURLAUTH_BASIC;
-    }
-    if (options.proxydigest) {
-      options.proxyauth |= CURLAUTH_DIGEST;
-    }
-    if (options.proxyntlm) {
-      options.proxyauth |= CURLAUTH_NTLM;
+    if (options.proxyanyauth) {
+      options.proxyauth = CURLAUTH_ANY;
+    } else {
+      if (options.proxybasic) {
+        options.proxyauth |= CURLAUTH_BASIC;
+      }
+      if (options.proxydigest) {
+        options.proxyauth |= CURLAUTH_DIGEST;
+      }
+      if (options.proxyntlm) {
+        options.proxyauth |= CURLAUTH_NTLM;
+      }
     }
 
     if (options.scheme[strlen(options.scheme) - 1] == 's') {
@@ -421,7 +426,7 @@ int main (int argc, char *argv[]) {
     // Initialize curl library before we are a multithreaded program
     curl_global_init(CURL_GLOBAL_ALL);
     struct proto_operations *proto_oper_p;
-    throwable proto_oper_p = get_proto_oper(options.scheme, &options);
+    throwable proto_oper_p = get_proto_oper(options.scheme, (struct networkfs_opts *) &options);
     networkfs_oper_p = emulate_networkfs_oper(proto_oper_p);
 
     if (!options.uid_set) {
