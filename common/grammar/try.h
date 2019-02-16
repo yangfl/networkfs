@@ -1,67 +1,9 @@
 #ifndef TRY_H
 #define TRY_H
 
-#include <threads.h>
-#include <stdbool.h>
-#include <stdio.h>
-
 #include "macro.h"
 #include "with.h"
-#include "_class.h"
-
-
-#define BT_BUF_SIZE 32
-
-typedef struct BaseException BaseException;
-
-#define EXCEPTION_CATCHED 2
-
-typedef int (*Exception_fputs_t) (const BaseException *, FILE *);
-typedef void (*Exception_del_t) (BaseException *);
-
-
-CLASS(BaseException, {
-  char set;
-  int nptrs;
-  unsigned line;
-  const char *file;
-  const char *func;
-  void *bt[BT_BUF_SIZE];
-  VTABLE(Exception, {
-    const char *name;
-    Exception_fputs_t fputs;
-    Exception_del_t clean;
-  });
-});
-
-CLASS(Exception, {
-  INHERIT(BaseException);
-  char *what;
-  char padding[1024 - sizeof(struct BaseException) - sizeof(char *)];
-});
-
-#define ExceptionDef(name, ...) \
-  typedef struct name { \
-    struct BaseException; \
-    struct __VA_ARGS__; \
-  } name; \
-  _Static_assert(sizeof(name) <= sizeof(Exception), # name " too large"); \
-  VTABLE_IMPL(Exception, name)
-
-extern thread_local Exception ex;
-
-#define GENERATE_EXCEPTION_INIT(type, ...) type ## _init((type *) &ex, __FILE__, __LINE__, __func__, ## __VA_ARGS__)
-
-void Exception_copy (Exception *dst, const Exception *src);
-int Exception_fputs (const Exception *e, FILE *stream);
-
-inline bool Exception_has (const Exception *e) {
-  return e->set == true;
-}
-
-void Exception_dirtydestory (Exception *e);
-void Exception_destory (Exception *e);
-int Exception_init (Exception *e, const char *file, unsigned line, const char *func, bool no_bt);
+#include "exception.h"
 
 
 #define should(test) if likely (test)
@@ -94,23 +36,6 @@ int Exception_init (Exception *e, const char *file, unsigned line, const char *f
   Exception __save_ex, \
   Exception_copy(&__save_ex, &ex); ex.set = false, \
   1, Exception_copy(&ex, &__save_ex))
-
-#define TEST_SUCCESS Exception_has(&ex)
-
-#define CONSTSTR(s) s, strlen(s)
-
-
-/* unspecified */
-
-typedef Exception UnspecifiedException;
-VTABLE_IMPL(Exception, UnspecifiedException);
-
-int UnspecifiedException_init (
-    UnspecifiedException *e, const char *file, unsigned line, const char *func,
-    char *what);
-
-#define UnspecifiedException(msg) GENERATE_EXCEPTION_INIT(UnspecifiedException, strdup(msg))
-#define Quick Exception(UnspecifiedException, "Quick exception")
 
 
 #endif /* TRY_H */

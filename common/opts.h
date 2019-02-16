@@ -15,6 +15,8 @@ struct networkfs_opts {
   long ssl_version;
   long ip_version;
 
+  uid_t uid;
+  gid_t gid;
   mode_t fmask;
   mode_t dmask;
 

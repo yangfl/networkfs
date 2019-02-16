@@ -9,9 +9,14 @@
 typedef Exception MallocException;
 VTABLE_IMPL(Exception, MallocException);
 
-int MallocException_init (
+inline int MallocException_init (
     MallocException *e, const char *file, unsigned line, const char *func,
-    char *what);
+    char *what) {
+  e->what = what;
+  e->VTABLE(Exception) = &VTABLE_OF(Exception, MallocException);
+
+  return Exception_init((Exception *) e, file, line, func, 0);
+}
 
 #define MallocException(msg) GENERATE_EXCEPTION_INIT(MallocException, msg)
 

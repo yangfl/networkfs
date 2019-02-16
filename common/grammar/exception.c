@@ -5,7 +5,7 @@
 
 #include "class.h"
 
-#include "try.h"
+#include "exception.h"
 
 
 thread_local Exception ex = {
@@ -94,6 +94,19 @@ int Exception_fputs (const Exception *e, FILE *stream) {
 }
 
 
+int Exception_fputs_what (const BaseException *e_, FILE *stream) {
+  const Exception *e = (const Exception *) e_;
+
+  if (e->what == NULL) {
+    return fputs("(no message)\n", stream);
+  } else {
+    int ret = fputs(e->what, stream);
+    ret += fputs("\n", stream);
+    return ret;
+  }
+}
+
+
 extern inline bool Exception_has (const Exception *e);
 
 
@@ -115,13 +128,21 @@ void Exception_dirtydestory (Exception *e) {
 void Exception_destory (Exception *e) {
   PROTECT_RETURN(e);
 
-  virtual_method(Exception, e, clean)((BaseException *) e);
+  virtual_method(Exception, e, destory)((BaseException *) e);
 
   e->set = false;
   e->file = NULL;
   e->line = 0;
   e->func = NULL;
   e->VTABLE(Exception) = NULL;
+}
+
+
+void Exception_destory_dynamic (BaseException *e_) {
+  Exception *e = (Exception *) e_;
+
+  free(e->what);
+  e->what = NULL;
 }
 
 
@@ -145,39 +166,13 @@ int Exception_init (Exception *e, const char *file, unsigned line, const char *f
 
 /* unspecified */
 
-int UnspecifiedException_init (
+extern inline int UnspecifiedException_init (
     UnspecifiedException *e, const char *file, unsigned line, const char *func,
-    char *what) {
-  e->what = what;
-  e->VTABLE(Exception) = &VTABLE_OF(Exception, UnspecifiedException);
-
-  return Exception_init((Exception *) e, file, line, func, 0);
-}
-
-
-static int Exception_fputs_unspecified (const BaseException *e_, FILE *stream) {
-  const Exception *e = (const Exception *) e_;
-
-  if (e->what == NULL) {
-    return fputs("(no message)\n", stream);
-  } else {
-    int ret = fputs(e->what, stream);
-    ret += fputs("\n", stream);
-    return ret;
-  }
-}
-
-
-static void Exception_del_unspecified (BaseException *e_) {
-  Exception *e = (Exception *) e_;
-
-  free(e->what);
-  e->what = NULL;
-}
+    char *what);
 
 
 VTABLE_INIT(Exception, UnspecifiedException) = {
   .name = "UnspecifiedException",
-  .fputs = Exception_fputs_unspecified,
-  .clean = Exception_del_unspecified
+  .fputs = Exception_fputs_what,
+  .destory = Exception_destory_dynamic
 };

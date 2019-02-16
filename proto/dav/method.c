@@ -318,7 +318,12 @@ int dav_propfind (struct DavServer *server, const char *path, int depth, void *b
           }
           condition_throw(href && propstat && prop && status) UnspecifiedException("response unexpected");
 
-          struct stat st = {.st_mode = (S_IFREG | 0777) & ~server->options->fmask, .st_nlink = 1};
+          struct stat st = {
+            .st_uid = server->options->uid,
+            .st_gid = server->options->gid,
+            .st_mode = (S_IFREG | 0777) & ~server->options->fmask,
+            .st_nlink = 1
+          };
 
           foreach(Node) (prop_entry, prop) {
             if (xmlStrcmp(prop_entry->ns->href, BAD_CAST "DAV:") != 0) {

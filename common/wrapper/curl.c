@@ -91,7 +91,7 @@ static int Exception_fputs_curl (const BaseException *e_, FILE *stream) {
 
 VTABLE_INIT(Exception, CurlException) = {
   .name = "CurlException",
-  .clean = NULL,
+  .destory = NULL,
   .fputs = Exception_fputs_curl
 };
 
@@ -237,7 +237,7 @@ static int Exception_fputs_curlurl (const BaseException *e_, FILE *stream) {
 
 VTABLE_INIT(Exception, CurlUrlException) = {
   .name = "CurlUrlException",
-  .clean = NULL,
+  .destory = NULL,
   .fputs = Exception_fputs_curlurl
 };
 

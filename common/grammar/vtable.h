@@ -36,7 +36,13 @@ typedef struct VTable {
   \
   struct VTABLE_CLASSNAME(SupClass) VTABLE_OF(SupClass, SubClass)
 #define virtual_method(SupClass, instance, method) \
-  (!likely(VTable_vaild((const struct VTable *) (instance)->VTABLE_FIELDNAME(SupClass), sizeof(*((instance)->VTABLE_FIELDNAME(SupClass)))) && (instance)->VTABLE_FIELDNAME(SupClass)->method)) ? 0 : ((instance)->VTABLE_FIELDNAME(SupClass)->method)
+  unlikely(!( \
+      (instance)->VTABLE_FIELDNAME(SupClass) && \
+      (instance)->VTABLE_FIELDNAME(SupClass)->method && \
+      VTable_vaild( \
+        (const struct VTable *) (instance)->VTABLE_FIELDNAME(SupClass), \
+        sizeof(*((instance)->VTABLE_FIELDNAME(SupClass)))))) ? \
+    0 : ((instance)->VTABLE_FIELDNAME(SupClass)->method)
 #define issubtype(SupClass, instance, SubClass) \
   ((instance)->VTABLE_FIELDNAME(SupClass) == &VTABLE_OF(SupClass, SubClass))
 

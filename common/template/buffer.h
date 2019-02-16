@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include <wrapper/log.h>
 #include <grammar/macro.h>
 #include <grammar/class.h>
 
@@ -35,9 +34,9 @@ int Buffer_init_new (struct Buffer *this, size_t size);
     __VA_ARGS__, Buffer_init_exist, arg4, Buffer_init_new, Buffer_init_quick, \
   )(__VA_ARGS__)
 
-GENERATE_NEW_FUNC(Buffer, struct Buffer, exist, (char *data, size_t size, bool extensible), data, size, extensible)
-GENERATE_NEW_FUNC(Buffer, struct Buffer, new, (size_t size), size)
-GENERATE_NEW_FUNC(Buffer, struct Buffer, quick, (), )
+GENERATE_NEW_FUNC_GENERIC(Buffer, struct Buffer, exist, (char *data, size_t size, bool extensible), data, size, extensible)
+GENERATE_NEW_FUNC_GENERIC(Buffer, struct Buffer, new, (size_t size), size)
+GENERATE_NEW_FUNC_GENERIC(Buffer, struct Buffer, quick, (), )
 #define Buffer_new(...) GET_5TH_ARG( \
     arg0, ## __VA_ARGS__, Buffer_new_exist, arg4, Buffer_new_new, Buffer_new_quick, \
   )(__VA_ARGS__)

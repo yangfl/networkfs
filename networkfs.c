@@ -49,6 +49,8 @@ struct _networkfs_opts {
 
   bool uid_set;
   bool gid_set;
+  bool set_uid;
+  bool set_gid;
   bool entry_timeout_set;
   bool negative_timeout_set;
   bool attr_timeout_set;
@@ -74,8 +76,10 @@ static const struct fuse_opt option_spec[] = {
   NETWORKFS_OPT_KEY("fmask=%o", fmask),
   NETWORKFS_OPT_KEY("dmask=%o", dmask),
 
-  NETWORKFS_OPT_KEY("uid=",              uid_set),
-  NETWORKFS_OPT_KEY("gid=",              gid_set),
+  NETWORKFS_OPT_KEY("uid=%d",            uid),
+  NETWORKFS_OPT_KEY("gid=%d",            gid),
+  NETWORKFS_OPT_KEY("set_uid",           set_uid),
+  NETWORKFS_OPT_KEY("set_gid",           set_gid),
   NETWORKFS_OPT_KEY("entry_timeout=",    entry_timeout_set),
   NETWORKFS_OPT_KEY("negative_timeout=", negative_timeout_set),
   NETWORKFS_OPT_KEY("attr_timeout=",     attr_timeout_set),
@@ -147,6 +151,8 @@ static void usage (const char *progname) {
 "    -o password=STR        set/override server password\n"
 "    -o (no_)hide_password  (do not) hide password from ps (yes)\n"
 // -- fuse --
+"    -o set_uid             override existing uid\n"
+"    -o set_gid             override existing gid\n"
 "    -o fmask=M             set file permissions (octal, 0133)\n"
 "    -o dmask=M             set file permissions (octal, 0022)\n"
 "    -o entry_timeout=T     cache timeout for names (30.0s)\n"
@@ -199,6 +205,8 @@ static void usage (const char *progname) {
 
 
 static inline void options_set_default (void) {
+  options.uid = getuid();
+  options.gid = getgid();
   options.fmask = 0133;
   options.dmask = 0022;
 
@@ -208,6 +216,18 @@ static inline void options_set_default (void) {
 
   options.hide_password = true;
 }
+
+
+extern inline int NetworkFSException_init (
+    NetworkFSException *e, const char *file, unsigned line, const char *func,
+    char *what);
+
+
+VTABLE_INIT(Exception, NetworkFSException) = {
+  .name = "NetworkFSException",
+  .fputs = NULL,
+  .destory = Exception_destory_dynamic
+};
 
 
 static inline int combine_url (CURLU *h, struct _networkfs_opts *options) {
@@ -374,7 +394,7 @@ int main (int argc, char *argv[]) {
 
   try {
     if (fuse_opt_parse(&args, &options, option_spec, networkfs_opt_proc) == -1) {
-      throw UnspecifiedException("fuse_opt_parse failed");
+      throw NetworkFSException("fuse_opt_parse failed");
     }
 
     struct fuse_operations *networkfs_oper_p = NULL;
@@ -387,14 +407,14 @@ int main (int argc, char *argv[]) {
     if (options.show_help) {
       usage(argv[0]);
       if (fuse_opt_add_arg(&args, "-h")) {
-        throw UnspecifiedException("fuse_opt_add_arg help failed");
+        throw NetworkFSException("fuse_opt_add_arg help failed");
       }
       args.argv[0][0] = '\0';
       goto end;
     }
 
     if (options.baseurl == NULL) {
-      throw UnspecifiedException("no URL specified");
+      throw NetworkFSException("no URL specified");
     }
     throwable combine_url(options.baseurl, &options);
 
@@ -429,38 +449,41 @@ int main (int argc, char *argv[]) {
     throwable proto_oper_p = get_proto_oper(options.scheme, (struct networkfs_opts *) &options);
     networkfs_oper_p = emulate_networkfs_oper(proto_oper_p);
 
-    if (!options.uid_set) {
+    if (options.set_uid) {
       char opt[sizeof("-ouid=") + 10];
-      snprintf(opt, sizeof(opt), "-ouid=%d", getuid());
+      snprintf(opt, sizeof(opt), "-ouid=%d", options.uid);
       if (fuse_opt_add_arg(&args, opt)) {
-        throw UnspecifiedException("fuse_opt_add_arg uid failed");
+        throw NetworkFSException("fuse_opt_add_arg uid failed");
       }
     }
-    if (!options.gid_set) {
+    if (options.set_gid) {
       char opt[sizeof("-ogid=") + 10];
-      snprintf(opt, sizeof(opt), "-ogid=%d", getgid());
+      snprintf(opt, sizeof(opt), "-ogid=%d", options.gid);
       if (fuse_opt_add_arg(&args, opt)) {
-        throw UnspecifiedException("fuse_opt_add_arg gid failed");
+        throw NetworkFSException("fuse_opt_add_arg gid failed");
       }
     }
     if (!options.entry_timeout_set) {
       if (fuse_opt_add_arg(&args, "-oentry_timeout=30")) {
-        throw UnspecifiedException("fuse_opt_add_arg entry_timeout failed");
+        throw NetworkFSException("fuse_opt_add_arg entry_timeout failed");
       }
     }
     if (!options.negative_timeout_set) {
       if (fuse_opt_add_arg(&args, "-onegative_timeout=10")) {
-        throw UnspecifiedException("fuse_opt_add_arg negative_timeout failed");
+        throw NetworkFSException("fuse_opt_add_arg negative_timeout failed");
       }
     }
     if (!options.attr_timeout_set) {
       if (fuse_opt_add_arg(&args, "-oattr_timeout=30")) {
-        throw UnspecifiedException("fuse_opt_add_arg attr_timeout failed");
+        throw NetworkFSException("fuse_opt_add_arg attr_timeout failed");
       }
     }
 
     end:;
     ret = fuse_main(args.argc, args.argv, networkfs_oper_p, NULL);
+  } catch (NetworkFSException, e) {
+    fprintf(stderr, "error: %s\n", e->what);
+    ret = 1;
   } onerror (e) {
     ret = 1;
   }

@@ -1,14 +1,9 @@
 #include "malloc.h"
 
 
-int MallocException_init (
+extern inline int MallocException_init (
     MallocException *e, const char *file, unsigned line, const char *func,
-    char *what) {
-  e->what = what;
-  e->VTABLE(Exception) = &VTABLE_OF(Exception, MallocException);
-
-  return Exception_init((Exception *) e, file, line, func, 0);
-}
+    char *what);
 
 
 static int Exception_fputs_malloc (const BaseException *e_, FILE *stream) {
@@ -24,16 +19,9 @@ static int Exception_fputs_malloc (const BaseException *e_, FILE *stream) {
 }
 
 
-static void Exception_del_malloc (BaseException *e_) {
-  Exception *e = (Exception *) e_;
-
-  e->what = NULL;
-}
-
-
 VTABLE_INIT(Exception, MallocException) = {
   .name = "MallocException",
-  .clean = Exception_del_malloc,
+  .destory = NULL,
   .fputs = Exception_fputs_malloc
 };
 

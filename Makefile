@@ -32,16 +32,19 @@ clean:
 
 .PHONY: install
 install: networkfs
-	install -d $(DESTDIR)/sbin || true
-	install -m 0755 networkfs $(DESTDIR)/sbin
-	ln -s networkfs $(DESTDIR)/sbin/mount.networkfs
+	install -d $(DESTDIR)/bin || true
+	install -m 0755 networkfs $(DESTDIR)/bin
+	-ln -s networkfs $(DESTDIR)/bin/mount.networkfs
 
 .PHONY: uninstall
 uninstall:
-	rm -rf $(DESTDIR)/sbin/networkfs $(DESTDIR)/sbin/mount.networkfs
+	rm -rf $(DESTDIR)/bin/networkfs $(DESTDIR)/bin/mount.networkfs
+
+.PHONY: reinstall
+reinstall: uninstall install
 
 OBJS := networkfs.o \
-	common/grammar/malloc.o common/grammar/vtable.o common/grammar/try.o \
+	common/grammar/exception.o common/grammar/malloc.o common/grammar/vtable.o \
 	common/template/buffer.o common/template/simple_string.o common/template/stack.o \
 	common/wrapper/curl.o \
 	common/crc32.o common/utils.o \

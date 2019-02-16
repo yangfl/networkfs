@@ -1,10 +1,11 @@
-#define _GNU_SOURCE
-
 #include <string.h>
 
 #include <grammar/try.h>
+
+#include "../networkfs.h"
 #include "dav/dav.h"
 #include "dummy/dummy.h"
+
 #include "proto.h"
 
 
@@ -29,18 +30,18 @@ struct proto_operations *get_proto_oper (const char *scheme, struct networkfs_op
   //ADD_PROTO(http)
   ADD_PROTO(dummy)
   else {
-    char *msg;
-    asprintf(&msg, "unsupported scheme `%s'\n", scheme);
-    UnspecifiedException(msg);
+    char msg[sizeof("unsupported scheme `'") + strlen(scheme)];
+    snprintf(msg, sizeof(msg), "unsupported scheme `%s'", scheme);
+    NetworkFSException(msg);
     return NULL;
   }
   #undef ADD_PROTO
 
   should (ret) otherwise {
     if (!Exception_has(&ex)) {
-      char *msg;
-      asprintf(&msg, "scheme `%s' has no handler\n", scheme);
-      UnspecifiedException(msg);
+      char msg[sizeof("scheme `' has no handler") + strlen(scheme)];
+      snprintf(msg, sizeof(msg), "scheme `%s' has no handler", scheme);
+      NetworkFSException(msg);
     }
     return NULL;
   }
