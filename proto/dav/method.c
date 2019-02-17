@@ -40,15 +40,19 @@ static int __dav_strpcmp (const void *a, const void *b) {
 }
 
 
-static inline struct curl_slist *__dav_header_if (struct DavServer *server, struct curl_slist *list, const char *path, int lock) {
+static struct curl_slist *__dav_header_if (
+    struct DavServer *server, struct curl_slist *list, const char *path, enum LockType lock_type) {
   struct FileLock **filelock_p = tfind(&path, &server->filelock_tree, __dav_strpcmp);
   if (filelock_p) {
     struct FileLock *filelock = *filelock_p;
     do_once {
       char if_header[sizeof("If: (<>)") + filelock->token->len];
       snprintf(if_header, sizeof(if_header), "If: (<%s>)", filelock->token->str);
-      throwable list = curl_slist_append_e(list, if_header);
-      if (lock == 2) {
+      list = curl_slist_append_e(list, if_header);
+      if (list == NULL) {
+        break;
+      }
+      if (lock_type == RW_LOCK_WRITE) {
         tdelete(&path, &server->filelock_tree, __dav_strpcmp);
         delete(FileLock) filelock;
       }
@@ -59,20 +63,25 @@ static inline struct curl_slist *__dav_header_if (struct DavServer *server, stru
 }
 
 
-static inline int __dav_method (struct DavServer *server, const char *path, const char *method, int lock) {
+int __dav_method (
+    struct DavServer *server, const char *path, const char *method, enum LockType lock_type) {
   with_curl (curl, server->baseuh, path, server->options) {
-    switch (lock) {
-      case 1:
-        while (pthread_rwlock_rdlock(&server->filelock_tree_lock));
-        break;
-      case 2:
-        while (pthread_rwlock_wrlock(&server->filelock_tree_lock));
-        break;
+    if (server->options->use_lock && lock_type) {
+      switch (lock_type) {
+        case RW_LOCK_NONE:
+          break;
+        case RW_LOCK_READ:
+          while (pthread_rwlock_rdlock(&server->filelock_tree_lock));
+          break;
+        case RW_LOCK_WRITE:
+          while (pthread_rwlock_wrlock(&server->filelock_tree_lock));
+          break;
+      }
     }
 
-    with (struct curl_slist *list = NULL, , 1, delete(curl_slist) list) {
-      if (lock) {
-        throwable list = __dav_header_if(server, list, path, lock);
+    throwable scope (curl_slist, list) {
+      if (server->options->use_lock && lock_type) {
+        throwable list = __dav_header_if(server, list, path, lock_type);
         curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
       }
       curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, method);
@@ -80,7 +89,7 @@ static inline int __dav_method (struct DavServer *server, const char *path, cons
       curl_easy_perform_or_die(curl);
     }
 
-    if (lock) {
+    if (server->options->use_lock && lock_type) {
       pthread_rwlock_unlock(&server->filelock_tree_lock);
     }
   }
@@ -88,26 +97,17 @@ static inline int __dav_method (struct DavServer *server, const char *path, cons
 }
 
 
-int dav_mkcol (struct DavServer *server, const char *path) {
-  return __dav_method(server, path, "MKCOL", 0);
-}
-
-
-int dav_put_simple (struct DavServer *server, const char *path) {
-  return __dav_method(server, path, "PUT", 1);
-}
-
-
-int dav_delete (struct DavServer *server, const char *path) {
-  return __dav_method(server, path, "DELETE", 2);
-}
+extern inline int dav_mkcol (struct DavServer *server, const char *path);
+extern inline int dav_put_simple (struct DavServer *server, const char *path);
+extern inline int dav_delete (struct DavServer *server, const char *path);
 
 
 static size_t __dav_head_callback (char *buffer, size_t size, size_t nitems, void *userdata) {
   size_t *sizep = (size_t *) userdata;
 
-  if (strscmp(buffer, "Content-Length: ") == 0) {
-    buffer += strlen("Content-Length: ");
+  if (strscmp(buffer, "Content-Length:") == 0) {
+    buffer += strlen("Content-Length:");
+    buffer = strlstrip(buffer);
     *sizep = strtol(buffer, NULL, 10);
   }
 
@@ -120,6 +120,7 @@ int dav_head (struct DavServer *server, const char *path, size_t *sizep) {
     curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "HEAD");
     curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
     if (sizep) {
+      *sizep = 0;
       curl_easy_setopt_or_die(curl, CURLOPT_HEADERDATA, sizep);
       curl_easy_setopt_or_die(curl, CURLOPT_HEADERFUNCTION, __dav_head_callback);
     }
@@ -129,7 +130,8 @@ int dav_head (struct DavServer *server, const char *path, size_t *sizep) {
 }
 
 
-int dav_get (struct DavServer *server, const char *path, char *data, size_t size, off_t offset) {
+ssize_t dav_get (struct DavServer *server, const char *path, char *data, size_t size, off_t offset) {
+  int res;
   with (Buffer buf, Buffer(&buf, data, size, false), Buffer_destory(&buf)) {
     with_curl (curl, server->baseuh, path, server->options) {
       if (offset != 0 || size != 0) {
@@ -141,28 +143,31 @@ int dav_get (struct DavServer *server, const char *path, char *data, size_t size
       curl_easy_setopt_or_die(curl, CURLOPT_WRITEFUNCTION, Buffer_append);
       curl_easy_perform_or_die(curl);
     }
+    res = TEST_SUCCESS == 0 ? buf.offset : -TEST_SUCCESS;
   }
-  return TEST_SUCCESS;
+  return res;
 }
 
 
 int dav_put (struct DavServer *server, const char *path, const char *data, size_t size, off_t offset) {
   with (Buffer buf, Buffer(&buf, (char *) data, size, false), Buffer_destory(&buf)) {
     throwable with_curl (curl, server->baseuh, path, server->options) {
-      throwable with (struct curl_slist *list = NULL, , 1, delete(curl_slist) list) {
-        throwable synchronized (rwlock, &server->filelock_tree_lock, rdlock) {
-          throwable list = __dav_header_if(server, NULL, path, 1);
-          if (list) {
-            curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
-          }
-          curl_easy_setopt_or_die(curl, CURLOPT_UPLOAD, 1L);
-          curl_easy_setopt_or_die(curl, CURLOPT_READDATA, &buf);
-          curl_easy_setopt_or_die(curl, CURLOPT_READFUNCTION, Buffer_fetch);
-          throwable with_range (range, offset, size) {
-            curl_easy_setopt_or_die(curl, CURLOPT_RANGE, range);
-          }
-          curl_easy_setopt_or_die(curl, CURLOPT_INFILESIZE, (long) size);
-          curl_easy_perform_or_die(curl);
+      throwable scope (curl_slist, list) {
+        if (server->options->use_lock) {
+          while (pthread_rwlock_rdlock(&server->filelock_tree_lock));
+          throwable list = __dav_header_if(server, list, path, 1);
+          curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
+        }
+        curl_easy_setopt_or_die(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt_or_die(curl, CURLOPT_READDATA, &buf);
+        curl_easy_setopt_or_die(curl, CURLOPT_READFUNCTION, Buffer_fetch);
+        throwable with_range (range, offset, size) {
+          curl_easy_setopt_or_die(curl, CURLOPT_RANGE, range);
+        }
+        curl_easy_setopt_or_die(curl, CURLOPT_INFILESIZE, (long) size);
+        curl_easy_perform_or_die(curl);
+        if (server->options->use_lock) {
+          pthread_rwlock_unlock(&server->filelock_tree_lock);
         }
       }
     }
@@ -171,29 +176,53 @@ int dav_put (struct DavServer *server, const char *path, const char *data, size_
 }
 
 
-static inline int __dav_destination (
-    struct DavServer *server, const char *from, const char *to,
-    const char *method, const char *header) {
+static struct curl_slist *__dav_header_destination (
+    struct DavServer *server, struct curl_slist *list, const char *path) {
+  try {
+    throwable scope (CURLU, path_uh, server->baseuh) {
+      if likely (path[0] == '/') {
+        path++;
+      }
+      curl_url_set_or_die(path_uh, CURLUPART_URL, path, CURLU_URLENCODE);
+      throwable with (curl_char *path_url = NULL,
+                      curl_url_get_or_die(path_uh, CURLUPART_URL, &path_url, 0),
+                      curl_free(path_url)) {
+        char dest_header[sizeof("Destination: ") + strlen(path_url)];
+        snprintf(dest_header, sizeof(dest_header), "Destination: %s", path_url);
+        throwable list = curl_slist_append_e(list, dest_header);
+      }
+    }
+  } onerror (e) {
+    curl_slist_free(list);
+    return NULL;
+  }
+  return list;
+}
+
+
+int __dav_move (struct DavServer *server, const char *from, const char *to, bool nooverwrite) {
   with_curl (curl, server->baseuh, from, server->options) {
-    throwable scope (CURLU, to_uh, server->baseuh) {
-      curl_url_set_or_die(to_uh, CURLUPART_URL, to + (to[0] == '/'), CURLU_URLENCODE);
-      throwable with (curl_char *to_url = NULL,
-                      curl_url_get_or_die(to_uh, CURLUPART_URL, &to_url, 0),
-                      curl_free(to_url)) {
-        char dest_header[sizeof("Destination: ") + strlen(to_url)];
-        snprintf(dest_header, sizeof(dest_header), "Destination: %s", to_url);
-        throwable scope (curl_slist, list, dest_header) {
-          if (header) {
-            throwable list = curl_slist_append_e(list, header);
-          }
-          throwable synchronized (rwlock, &server->filelock_tree_lock, rdlock) {
-            throwable list = __dav_header_if(server, list, to, 1);
-            curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
-            curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, method);
-            curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
-            curl_easy_perform_or_die(curl);
-          }
+    throwable scope (curl_slist, list) {
+      throwable list = __dav_header_destination(server, list, to);
+      if (nooverwrite) {
+        throwable list = curl_slist_append_e(list, "Overwrite: F");
+      }
+
+      if (server->options->use_lock) {
+        while (pthread_rwlock_rdlock(&server->filelock_tree_lock));
+        if (tfind(&from, &server->filelock_tree, __dav_strpcmp)) {
+          pthread_rwlock_unlock(&server->filelock_tree_lock);
+          while (pthread_rwlock_wrlock(&server->filelock_tree_lock));
+          throwable list = __dav_header_if(server, list, from, RW_LOCK_WRITE);
         }
+        throwable list = __dav_header_if(server, list, to, RW_LOCK_READ);
+        curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
+      }
+      curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "MOVE");
+      curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
+      curl_easy_perform_or_die(curl);
+      if (server->options->use_lock) {
+        pthread_rwlock_unlock(&server->filelock_tree_lock);
       }
     }
   }
@@ -201,18 +230,28 @@ static inline int __dav_destination (
 }
 
 
-int dav_move (struct DavServer *server, const char *from, const char *to) {
-  return __dav_destination(server, from, to, "MOVE", NULL);
-}
-
-
-int dav_move_nooverwrite (struct DavServer *server, const char *from, const char *to) {
-  return __dav_destination(server, from, to, "MOVE", "Overwrite: F");
-}
+extern inline int dav_move (struct DavServer *server, const char *from, const char *to);
+extern inline int dav_move_nooverwrite (struct DavServer *server, const char *from, const char *to);
 
 
 int dav_copy (struct DavServer *server, const char *from, const char *to) {
-  return __dav_destination(server, from, to, "COPY", NULL);
+  with_curl (curl, server->baseuh, from, server->options) {
+    throwable scope (curl_slist, list) {
+      throwable list = __dav_header_destination(server, list, to);
+      if (server->options->use_lock) {
+        while (pthread_rwlock_rdlock(&server->filelock_tree_lock));
+        throwable list = __dav_header_if(server, list, to, RW_LOCK_READ);
+      }
+      curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
+      curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "COPY");
+      curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
+      curl_easy_perform_or_die(curl);
+      if (server->options->use_lock) {
+        pthread_rwlock_unlock(&server->filelock_tree_lock);
+      }
+    }
+  }
+  return TEST_SUCCESS;
 }
 
 
@@ -435,9 +474,10 @@ static size_t __dav_lock_callback (char *buffer, size_t size, size_t nitems, voi
   SimpleString **res_p = (SimpleString **) userdata;
 
   if (*res_p == NULL) {
-    if (strscmp(buffer, "Lock-Token: ") == 0) {
+    if (strscmp(buffer, "Lock-Token:") == 0) {
       strnrstrip(buffer, nitems);
-      buffer += strlen("Lock-Token: ");
+      buffer += strlen("Lock-Token:");
+      buffer = strlstrip(buffer);
       // lighttpd bug
       if likely (buffer[0] == '<') {
         buffer++;
@@ -570,6 +610,10 @@ static int __dav_unlock (struct DavServer *server, const char *path, SimpleStrin
 
 
 int dav_lock (struct DavServer *server, const char *path) {
+  if (!server->options->use_lock) {
+    return 0;
+  }
+
   struct FileLock *filelock = NULL;
   synchronized (rwlock, &server->filelock_tree_lock, rdlock) {
     struct FileLock **filelock_p = tfind(&path, &server->filelock_tree, __dav_strpcmp);
@@ -621,6 +665,10 @@ int dav_lock (struct DavServer *server, const char *path) {
 
 
 int dav_unlock (struct DavServer *server, const char *path) {
+  if (!server->options->use_lock) {
+    return 0;
+  }
+
   int res = 0;
 
   struct FileLock *filelock = NULL;
@@ -666,18 +714,20 @@ int dav_unlock (struct DavServer *server, const char *path) {
 static size_t __dav_options_callback (char *buffer, size_t size, size_t nitems, void *userdata) {
   struct DavServer *server = (struct DavServer *) userdata;
 
-  if (strscmp(buffer, "Allow: ") == 0) {
+  if (strscmp(buffer, "Allow:") == 0) {
     strnrstrip(buffer, nitems - 2);
-    buffer += strlen("Allow: ");
+    buffer += strlen("Allow:");
+    buffer = strlstrip(buffer);
     foreach(strtok) (option, buffer, ", ") {
       if (0);
     #define X(o) else if (strcmp(option, # o) == 0) server->o = true;
       DAV_METHOD
     #undef X
     }
-  } else if (strscmp(buffer, "Server: ") == 0) {
+  } else if (strscmp(buffer, "Server:") == 0) {
     strnrstrip(buffer, nitems - 2);
-    buffer += strlen("Server: ");
+    buffer += strlen("Server:");
+    buffer = strlstrip(buffer);
     char *version = strchr(buffer, '/');
     *version = '\0';
     version++;
@@ -739,8 +789,10 @@ int dav_options (struct DavServer *server) {
       server->UNLOCK = false;
     }
 
-    server->filelock_tree = NULL;
-    pthread_rwlock_init(&server->filelock_tree_lock, NULL);
+    if (server->options->use_lock) {
+      server->filelock_tree = NULL;
+      pthread_rwlock_init(&server->filelock_tree_lock, NULL);
+    }
   } onerror (e) {}
 
   return TEST_SUCCESS;
@@ -758,8 +810,10 @@ static void __dav_unlock_node (void *nodep) {
 
 
 void dav_destory (struct DavServer *server) {
-  __dav_unlock_node_server = server;
-  tdestroy(server->filelock_tree, __dav_unlock_node);
-  pthread_rwlock_destroy(&server->filelock_tree_lock);
+  if (server->options->use_lock) {
+    __dav_unlock_node_server = server;
+    tdestroy(server->filelock_tree, __dav_unlock_node);
+    pthread_rwlock_destroy(&server->filelock_tree_lock);
+  }
   delete(CURLU) server->baseuh;
 }

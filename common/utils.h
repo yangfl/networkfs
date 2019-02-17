@@ -19,4 +19,23 @@ inline char *strnrstrip (char *s, size_t n) {
 }
 
 
+inline char *strrstrip (char *s) {
+  return strnrstrip(s, strlen(s));
+}
+
+
+inline char *strlstrip (char *s) {
+  while (isspace(*s)) {
+    s++;
+  }
+  return s;
+}
+
+
+inline char *strstrip (char *s) {
+  strrstrip(s);
+  return strlstrip(s);
+}
+
+
 #endif /* NETWORKFS_UTILS_H */

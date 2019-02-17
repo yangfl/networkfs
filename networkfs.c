@@ -69,8 +69,10 @@ static const struct fuse_opt option_spec[] = {
   NETWORKFS_OPT_KEY("username=%s", username),
   NETWORKFS_OPT_KEY("password=%s", password),
 
+  // -- main --
   NETWORKFS_OPT("hide_password",    hide_password, true),
   NETWORKFS_OPT("no_hide_password", hide_password, false),
+  NETWORKFS_OPT_KEY("use_lock",     use_lock),
 
   // -- fuse --
   NETWORKFS_OPT_KEY("fmask=%o", fmask),
@@ -149,7 +151,9 @@ static void usage (const char *progname) {
 "    -o user=STR            set/override server username\n"
 "    -o username=STR        set/override server username\n"
 "    -o password=STR        set/override server password\n"
+// -- main --
 "    -o (no_)hide_password  (do not) hide password from ps (yes)\n"
+"    -o use_lock            use WebDAV lock\n"
 // -- fuse --
 "    -o set_uid             override existing uid\n"
 "    -o set_gid             override existing gid\n"

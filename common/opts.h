@@ -44,6 +44,8 @@ struct networkfs_opts {
   long proxytype;
   long proxyauth;
   bool proxytunnel;
+
+  bool use_lock;
 };
 
 

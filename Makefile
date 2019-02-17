@@ -12,7 +12,7 @@ CFLAGS += -fms-extensions -Icommon
 # Clang:  -Wno-microsoft
 
 ifeq ($(DEBUG), 1)
-	CFLAGS += -g
+	CFLAGS += -g -DDEBUG
 else
 	CFLAGS += -Os -flto
 	LDFLAGS += -s

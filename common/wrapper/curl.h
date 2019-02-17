@@ -79,7 +79,7 @@ inline char *curl_easy_unescape_e (CURL *curl, const char *url, int inlength, in
 }
 
 #define with_range(range, offset, size) \
-  with (char range[sizeof("-/*") + 2 * 10], snprintf(range, sizeof(range), "%zd-%zd/*", (offset), (size) + (offset) - 1), )
+  with (char range[sizeof("-") + 2 * 10], snprintf(range, sizeof(range), "%zd-%zd", (offset), (size) + (offset) - 1), )
 
 inline struct curl_slist *curl_slist_append_weak (struct curl_slist *list, const char *string) {
   struct curl_slist *res = curl_slist_append(list, string);
@@ -99,8 +99,8 @@ inline struct curl_slist *curl_slist_append_e (struct curl_slist *list, const ch
   return res;
 }
 
-#define curl_slist(...) GET_3RD_ARG( \
-    __VA_ARGS__, curl_slist_append_e(__VA_ARGS__), curl_slist_append_e(NULL, __VA_ARGS__), \
+#define curl_slist(...) GET_4TH_ARG( \
+    arg0, ## __VA_ARGS__, curl_slist_append_e(__VA_ARGS__), curl_slist_append_e(NULL, __VA_ARGS__), NULL \
   )
 #define curl_slist_new curl_slist
 #define curl_slist_free curl_slist_free_all

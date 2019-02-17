@@ -13,7 +13,11 @@
 #include "method.h"
 #include "parser.h"
 
-#define DEBUG(...)
+#ifdef DEBUG
+#define DBG printf
+#else
+#define DBG(...)
+#endif
 
 static struct DavServer server = {};
 
@@ -88,7 +92,7 @@ static inline int dav_exception_check (int res) {
 static int dav_readdir (const char *path, void *buf, fuse_fill_dir_t filler,
                         off_t offset, struct fuse_file_info *fi,
                         enum fuse_readdir_flags flags) {
-    DEBUG("dav_readdir %s\n",path);
+    DBG("dav_readdir %s\n",path);
   filler(buf, "..", NULL, 0, 0);
   dav_propfind(&server, path, 1, buf, filler);
   return dav_exception_check(0);
@@ -105,7 +109,7 @@ static int dav_getattr_callback (
 
 static int dav_getattr (const char *path, struct stat *stbuf,
                         struct fuse_file_info *fi) {
-    DEBUG("dav_getattr %s\n",path);
+    DBG("dav_getattr %s\n",path);
   dav_propfind(&server, path, 0, stbuf, dav_getattr_callback);
   return dav_exception_check(0);
 }
@@ -113,32 +117,30 @@ static int dav_getattr (const char *path, struct stat *stbuf,
 
 static int dav_read (const char *path, char *data, size_t size, off_t offset,
                      struct fuse_file_info *fi) {
-    DEBUG("dav_read %s %zd+%zd\n",path,offset,size);
-  int res;
-
-  size_t real_size;
-  res = dav_head(&server, path, &real_size);
-  if (res) {
-    return dav_exception_map();
-  }
-  if (real_size <= offset) {
+    DBG("dav_read %s %zd+%zd\n",path,offset,size);
+  if unlikely (size == 0) {
     return 0;
   }
 
-  if (real_size - offset < size) {
-    size = real_size - offset;
+  ssize_t read_size = dav_get(&server, path, data, size, offset);
+  if (read_size < 0) {
+    if (issubtype(Exception, &ex, CurlException) &&
+        ((CurlException *) &ex)->code == CURLE_HTTP_RETURNED_ERROR &&
+        ((CurlException *) &ex)->response_code == 416) {
+      Exception_destory(&ex);
+      return 0;
+    } else {
+      return dav_exception_map();
+    }
   }
-  res = dav_get(&server, path, data, size, offset);
-  if (res) {
-    return dav_exception_map();
-  }
-  return size;
+
+  return read_size;
 }
 
 
 static int dav_write (const char *path, const char *data, size_t size,
                       off_t offset, struct fuse_file_info *fi) {
-    DEBUG("dav_write %s %zd+%zd\n",path,offset,size);
+    DBG("dav_write %s %zd+%zd\n",path,offset,size);
   int res;
 
   size_t real_size;
@@ -160,7 +162,7 @@ static int dav_write (const char *path, const char *data, size_t size,
 
 
 static int dav_mkdir (const char *path, mode_t mode) {
-    DEBUG("dav_mkdir %s\n",path);
+    DBG("dav_mkdir %s\n",path);
   if unlikely (!server.MKCOL) {
     return -EOPNOTSUPP;
   }
@@ -170,7 +172,7 @@ static int dav_mkdir (const char *path, mode_t mode) {
 }
 
 static int dav_rename (const char *from, const char *to, unsigned int flags) {
-    DEBUG("dav_rename %s -> %s\n",from,to);
+    DBG("dav_rename %s -> %s\n",from,to);
   if unlikely (!server.MOVE) {
     return -EOPNOTSUPP;
   }
@@ -191,14 +193,14 @@ static int dav_rename (const char *from, const char *to, unsigned int flags) {
 
 
 static int dav_unlink (const char *path) {
-    DEBUG("dav_unlink %s\n",path);
+    DBG("dav_unlink %s\n",path);
   dav_delete(&server, path);
   return dav_exception_check(0);
 }
 
 
 static int dav_chmod (const char *path, mode_t mode, struct fuse_file_info *fi) {
-    DEBUG("dav_chmod %s %o\n",path,mode);
+    DBG("dav_chmod %s %o\n",path,mode);
   char value[19];
   snprintf(value, sizeof(value), "%o", mode);
   dav_proppatch(&server, path, "N:mode", value);
@@ -207,7 +209,7 @@ static int dav_chmod (const char *path, mode_t mode, struct fuse_file_info *fi) 
 
 
 static int dav_chown (const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
-    DEBUG("dav_chown %s %d:%d\n",path,uid,gid);
+    DBG("dav_chown %s %d:%d\n",path,uid,gid);
   char value[22];
   snprintf(value, sizeof(value), "%d:%d", uid, gid);
   dav_proppatch(&server, path, "N:owner", value);
@@ -216,7 +218,7 @@ static int dav_chown (const char *path, uid_t uid, gid_t gid, struct fuse_file_i
 
 
 static int dav_mknod (const char *path, mode_t mode, dev_t rdev) {
-    DEBUG("dav_mknod %s\n",path);
+    DBG("dav_mknod %s\n",path);
   if (!S_ISREG(mode)) {
     return -EINVAL;
   }
@@ -240,7 +242,7 @@ static int dav_mknod (const char *path, mode_t mode, dev_t rdev) {
 
 
 static int dav_truncate (const char *path, off_t size, struct fuse_file_info *fi) {
-    DEBUG("dav_truncate %s %zd\n",path,size);
+    DBG("dav_truncate %s %zd\n",path,size);
   int res;
 
   struct stat st;
@@ -293,7 +295,7 @@ static int dav_truncate (const char *path, off_t size, struct fuse_file_info *fi
 
 
 static inline int __dav_open (const char *path) {
-  if unlikely (!server.LOCK) {
+  if (!server.LOCK) {
     return 0;
   }
 
@@ -302,7 +304,7 @@ static inline int __dav_open (const char *path) {
 
 
 static int dav_open (const char *path, struct fuse_file_info *fi) {
-    DEBUG("dav_open %s\n",path);
+    DBG("dav_open %s\n",path);
   int res = 0;
 
   if (fi->flags & O_WRONLY || fi->flags & O_RDWR) {
@@ -335,7 +337,7 @@ static int dav_create (const char *path, mode_t mode, struct fuse_file_info *fi)
 
 
 static int dav_release (const char *path, struct fuse_file_info *fi) {
-    DEBUG("dav_release %s\n",path);
+    DBG("dav_release %s\n",path);
   if (!server.LOCK) {
     return 0;
   }
@@ -352,7 +354,7 @@ static ssize_t dav_copy_file_range (
     const char *path_in, struct fuse_file_info *fi_in, off_t offset_in,
     const char *path_out, struct fuse_file_info *fi_out, off_t offset_out,
     size_t len, int flags) {
-    DEBUG("dav_copy_file_range %s -> %s\n",path_in,path_out);
+    DBG("dav_copy_file_range %s -> %s\n",path_in,path_out);
   if (offset_in != offset_out) {
     return -EOPNOTSUPP;
   }
@@ -409,12 +411,12 @@ static void *dav_init (struct fuse_conn_info *conn, struct fuse_config *cfg) {
     xmlInitParser();
 
     throwable dav_options(&server);
-    DEBUG("The server is: %s/%s\n", server.server, server.version);
-    DEBUG("The server support:");
-  #define X(o) if (server.o) DEBUG(" " # o);
+    DBG("The server is: %s/%s\n", server.server, server.version);
+    DBG("The server support:");
+  #define X(o) if (server.o) DBG(" " # o);
     DAV_METHOD
   #undef X
-    DEBUG("\n");
+    DBG("\n");
   } catch (e) {
     Exception_fputs(e, stderr);
     FUSE_EXIT();
@@ -446,20 +448,20 @@ int dav_getoper (struct proto_operations *proto_oper, struct networkfs_opts *opt
   proto_oper->destroy         = dav_destroy;
   proto_oper->readdir         = dav_readdir;
   proto_oper->getattr         = dav_getattr;
-  proto_oper->chmod            = dav_chmod;
-  proto_oper->chown            = dav_chown;
+  proto_oper->chmod           = dav_chmod;
+  proto_oper->chown           = dav_chown;
   proto_oper->read            = dav_read;
-  proto_oper->write            = dav_write;
-  proto_oper->mknod            = dav_mknod;
-  proto_oper->mkdir            = dav_mkdir;
-  proto_oper->rename            = dav_rename;
-  proto_oper->unlink            = dav_unlink;
-  proto_oper->rmdir            = dav_unlink;
-  proto_oper->create    = dav_create;
-  proto_oper->open      = dav_open;
-  proto_oper->release   = dav_release;
-  proto_oper->truncate  = dav_truncate;
-  proto_oper->copy_file_range  = dav_copy_file_range;
+  proto_oper->write           = dav_write;
+  proto_oper->mknod           = dav_mknod;
+  proto_oper->mkdir           = dav_mkdir;
+  proto_oper->rename          = dav_rename;
+  proto_oper->unlink          = dav_unlink;
+  proto_oper->rmdir           = dav_unlink;
+  proto_oper->create          = dav_create;
+  proto_oper->open            = dav_open;
+  proto_oper->release         = dav_release;
+  proto_oper->truncate        = dav_truncate;
+  proto_oper->copy_file_range = dav_copy_file_range;
 
   return 0;
 }
