@@ -68,7 +68,7 @@ int Exception_fputs (const Exception *e, FILE *stream) {
   char typename_unknown[sizeof("UnknownException(0xffffffffffffffff)")];
   const char *typename = virtual_method(Exception, e, name);
   if (typename == NULL) {
-    snprintf(typename_unknown, sizeof(typename_unknown), "UnknownException(%p)", e->VTABLE(Exception));
+    snprintf(typename_unknown, sizeof(typename_unknown), "UnknownException(%p)", (void *) e->VTABLE(Exception));
     typename = typename_unknown;
   }
   ret += fprintf(

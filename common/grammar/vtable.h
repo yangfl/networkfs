@@ -18,12 +18,12 @@ typedef struct VTable {
 
 #define VTABLE_CLASSNAME(Class) CONCAT(Class, __VTable)
 #define VTABLE_FIELDNAME(Class) CONCAT(__vtable_, Class)
-#define VTABLE_DECL(Class, decl...) \
+#define VTABLE_DECL(Class, ...) \
   const struct VTABLE_CLASSNAME(Class) { \
     struct VTable; \
-    const struct decl; \
+    const struct __VA_ARGS__; \
   } *VTABLE_FIELDNAME(Class)
-#define VTABLE(Class...) IIF(COMPARE(x,x GET_2ND_ARG(Class,)))(VTABLE_FIELDNAME, VTABLE_DECL)(Class)
+#define VTABLE(...) IIF(COMPARE(x,x GET_2ND_ARG(__VA_ARGS__,)))(VTABLE_FIELDNAME, VTABLE_DECL)(__VA_ARGS__)
 #define VTABLE_OF(SupClass, SubClass) CONCAT(CONCAT(SupClass, _vtable_), SubClass)
 #define VTABLE_IMPL(SupClass, SubClass) \
   extern struct VTABLE_CLASSNAME(SupClass) VTABLE_OF(SupClass, SubClass)
@@ -36,12 +36,12 @@ typedef struct VTable {
   \
   struct VTABLE_CLASSNAME(SupClass) VTABLE_OF(SupClass, SubClass)
 #define virtual_method(SupClass, instance, method) \
-  unlikely(!( \
+  !likely( \
       (instance)->VTABLE_FIELDNAME(SupClass) && \
       (instance)->VTABLE_FIELDNAME(SupClass)->method && \
       VTable_vaild( \
         (const struct VTable *) (instance)->VTABLE_FIELDNAME(SupClass), \
-        sizeof(*((instance)->VTABLE_FIELDNAME(SupClass)))))) ? \
+        sizeof(*((instance)->VTABLE_FIELDNAME(SupClass))))) ? \
     0 : ((instance)->VTABLE_FIELDNAME(SupClass)->method)
 #define issubtype(SupClass, instance, SubClass) \
   ((instance)->VTABLE_FIELDNAME(SupClass) == &VTABLE_OF(SupClass, SubClass))

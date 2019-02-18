@@ -17,7 +17,8 @@ else
 	CFLAGS += -Os -flto
 	LDFLAGS += -s
 endif
-CFLAGS += -Wall -fPIC -fdata-sections -ffunction-sections
+CFLAGS += -Wall -Wextra -Wno-unused-parameter
+CFLAGS += -fPIC -fdata-sections -ffunction-sections
 LDFLAGS += -rdynamic -fPIE -Wl,--gc-sections
 
 

@@ -383,6 +383,7 @@ static int networkfs_opt_proc (void *data, const char *arg, int key,
 
         return 0;
       }
+      // fall through
     default:
       /* Pass through unknown options */
       return 1;

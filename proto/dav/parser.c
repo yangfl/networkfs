@@ -28,7 +28,7 @@ time_t xmlParserTimeNode (xmlNodePtr const node) {
           }
 
           if (node->children && node->children->content) {
-            struct tm tm = {};
+            struct tm tm = {0};
             if (strptime((const char *) node->children->content, format, &tm)) {
               return mktime(&tm);
             }

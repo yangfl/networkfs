@@ -45,7 +45,7 @@ int dummy_read(const char *path, char *buf, size_t size, off_t offset,
     return -ENOENT;
 
   len = strlen("Hello!");
-  if (offset < len) {
+  if (offset < (off_t) len) {
     if (offset + size > len)
       size = len - offset;
     memcpy(buf, "Hello!" + offset, size);

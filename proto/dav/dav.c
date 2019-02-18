@@ -19,7 +19,7 @@
 #define DBG(...)
 #endif
 
-static struct DavServer server = {};
+static struct DavServer server = {0};
 
 
 static void __attribute__((constructor)) dav_load (void) {
@@ -148,7 +148,7 @@ static int dav_write (const char *path, const char *data, size_t size,
   if (res) {
     return dav_exception_map();
   }
-  if (real_size < offset) {
+  if (real_size < (unsigned) offset) {
     char buf[offset - real_size];
     memset(buf, 0, sizeof(buf));
     res = dav_put(&server, path, buf, sizeof(buf), real_size);
@@ -270,7 +270,7 @@ static int dav_truncate (const char *path, off_t size, struct fuse_file_info *fi
     if (res) {
       return dav_exception_map();
     }
-    if (size < real_size / 2) {
+    if ((unsigned) size < real_size / 2) {
       char buf[size];
       res = dav_read(path, buf, size, 0, fi);
       if (res) {
@@ -365,7 +365,7 @@ static ssize_t dav_copy_file_range (
   if (res && res != -ENOENT) {
     return res;
   }
-  if (len < st_out.st_size / 2) {
+  if (len < (unsigned) st_out.st_size / 2) {
     return -EOPNOTSUPP;
   }
 
@@ -376,7 +376,7 @@ static ssize_t dav_copy_file_range (
       return res;
     }
   }
-  char file_out_after[offset_out + len < st_out.st_size ? st_out.st_size - len - offset_out : 0];
+  char file_out_after[offset_out + len < (unsigned) st_out.st_size ? st_out.st_size - len - offset_out : 0];
   if (sizeof(file_out_after)) {
     res = dav_read(path_out, file_out_after, sizeof(file_out_after), offset_out, fi_out);
     if (res) {

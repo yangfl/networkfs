@@ -31,7 +31,7 @@ int CurlException_init (
     CurlException *e, const char *file, unsigned line, const char *func,
     CURLcode code, enum CURLaction action, ...);
 
-#define CurlException(code, action...) GENERATE_EXCEPTION_INIT(CurlException, code, action)
+#define CurlException(code, action, ...) GENERATE_EXCEPTION_INIT(CurlException, code, action, ## __VA_ARGS__)
 
 
 ExceptionDef(CurlUrlException, {
@@ -49,7 +49,7 @@ int CurlUrlException_init (
     CurlUrlException *e, const char *file, unsigned line, const char *func,
     CURLUcode code, enum CURLUaction action, ...);
 
-#define CurlUrlException(code, action...) GENERATE_EXCEPTION_INIT(CurlUrlException, code, action)
+#define CurlUrlException(code, action, ...) GENERATE_EXCEPTION_INIT(CurlUrlException, code, action, ## __VA_ARGS__)
 
 
 #define with_curl(curl, baseuh, path, options) \

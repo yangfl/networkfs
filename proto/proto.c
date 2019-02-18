@@ -10,7 +10,7 @@
 
 
 
-static struct proto_operations proto_oper = {};
+static struct proto_operations proto_oper = {0};
 
 
 struct proto_operations *get_proto_oper (const char *scheme, struct networkfs_opts *options) {

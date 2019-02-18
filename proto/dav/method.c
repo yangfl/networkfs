@@ -32,7 +32,7 @@ static inline void FileLock_destory (struct FileLock *this) {
   delete(SimpleString) this->token;
 }
 
-GENERATE_FREE_FUNC(FileLock);
+GENERATE_FREE_FUNC(FileLock)
 
 
 static int __dav_strpcmp (const void *a, const void *b) {

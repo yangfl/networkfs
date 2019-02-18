@@ -14,8 +14,8 @@
     } \
     return ret; \
   }
-#define GENERATE_NEW_FUNC_GENERIC(Class, Struct, variant, args...) \
-  __GENERATE_NEW_FUNC(Class, Struct      , CONCAT(_, variant), args)
+#define GENERATE_NEW_FUNC_GENERIC(Class, Struct, variant, args, ...) \
+  __GENERATE_NEW_FUNC(Class, Struct      , CONCAT(_, variant), args, __VA_ARGS__)
 #define GENERATE_NEW_FUNC(Class) \
   __GENERATE_NEW_FUNC(Class, struct Class,                   , ())
 #define GENERATE_FREE_FUNC(Class) \
