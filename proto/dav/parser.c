@@ -10,6 +10,11 @@
 #include "parser.h"
 
 
+static void __attribute__((constructor)) parser_init (void) {
+  tzset();
+}
+
+
 time_t xmlParserTimeNode (xmlNodePtr const node) {
   foreach(LinkedList) (attribute, node->properties) {
     if (xmlStrcmp(attribute->name, BAD_CAST "dt") == 0) {
@@ -24,13 +29,14 @@ time_t xmlParserTimeNode (xmlNodePtr const node) {
           } else if (xmlStrscmp(format_name, BAD_CAST "rfc1123") == 0) {
             format = "%a, %d %b %Y %T GMT";
           } else {
+            fprintf(stderr, "Unknown time format %s\n", format_name);
             break;
           }
 
           if (node->children && node->children->content) {
-            struct tm tm = {0};
+            struct tm tm;
             if (strptime((const char *) node->children->content, format, &tm)) {
-              return mktime(&tm);
+              return mktime(&tm) - timezone;
             }
           }
         }

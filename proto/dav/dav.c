@@ -115,14 +115,14 @@ static int dav_getattr (const char *path, struct stat *stbuf,
 }
 
 
-static int dav_read (const char *path, char *data, size_t size, off_t offset,
+static int dav_read (const char *path, char *buf, size_t size, off_t offset,
                      struct fuse_file_info *fi) {
     DBG("dav_read %s %zd+%zd\n",path,offset,size);
   if unlikely (size == 0) {
     return 0;
   }
 
-  ssize_t read_size = dav_get(&server, path, data, size, offset);
+  ssize_t read_size = dav_get(&server, path, buf, size, offset);
   if (read_size < 0) {
     if (issubtype(Exception, &ex, CurlException) &&
         ((CurlException *) &ex)->code == CURLE_HTTP_RETURNED_ERROR &&
@@ -138,26 +138,50 @@ static int dav_read (const char *path, char *data, size_t size, off_t offset,
 }
 
 
-static int dav_write (const char *path, const char *data, size_t size,
+static int dav_write (const char *path, const char *buf, size_t size,
                       off_t offset, struct fuse_file_info *fi) {
     DBG("dav_write %s %zd+%zd\n",path,offset,size);
   int res;
 
-  size_t real_size;
-  res = dav_head(&server, path, &real_size);
+  do_once {
+    res = dav_put(&server, path, buf, size, offset);
+
+    if (res == 0) {
+      // success
+      break;
+    }
+
+    if (!issubtype(Exception, &ex, CurlException)) {
+      break;
+    }
+    CurlException *e = (CurlException *) &ex;
+    if (!(e->code == CURLE_HTTP_RETURNED_ERROR && e->response_code == 416)) {
+      break;
+    }
+    Exception_destory(&ex);
+
+    // 416, manual padding
+    size_t real_size;
+    res = dav_head(&server, path, &real_size);
+    if (res) {
+      break;
+    }
+    if (real_size < (unsigned) offset) {
+      char padding_buf[offset - real_size];
+      memset(padding_buf, 0, sizeof(padding_buf));
+      res = dav_put(&server, path, padding_buf, sizeof(padding_buf), real_size);
+      if (res) {
+        break;
+      }
+    }
+    res = dav_put(&server, path, buf, size, offset);
+  }
+
   if (res) {
     return dav_exception_map();
+  } else {
+    return size;
   }
-  if (real_size < (unsigned) offset) {
-    char buf[offset - real_size];
-    memset(buf, 0, sizeof(buf));
-    res = dav_put(&server, path, buf, sizeof(buf), real_size);
-    if (res) {
-      return dav_exception_map();
-    }
-  }
-  dav_put(&server, path, data, size, offset);
-  return dav_exception_check(size);
 }
 
 
@@ -170,6 +194,7 @@ static int dav_mkdir (const char *path, mode_t mode) {
   dav_mkcol(&server, path);
   return dav_exception_check(0);
 }
+
 
 static int dav_rename (const char *from, const char *to, unsigned int flags) {
     DBG("dav_rename %s -> %s\n",from,to);
@@ -219,7 +244,7 @@ static int dav_chown (const char *path, uid_t uid, gid_t gid, struct fuse_file_i
 
 static int dav_mknod (const char *path, mode_t mode, dev_t rdev) {
     DBG("dav_mknod %s\n",path);
-  if (!S_ISREG(mode)) {
+  if (S_ISDIR(mode)) {
     return -EINVAL;
   }
 
@@ -238,6 +263,52 @@ static int dav_mknod (const char *path, mode_t mode, dev_t rdev) {
   }
 
   return dav_chmod(path, mode, NULL);
+}
+
+
+static int dav_readlink (const char *path, char *buf, size_t size) {
+  int res;
+
+  res = dav_read(path, buf, size - 1, 0, NULL);
+  if (res < 0) {
+    return res;
+  }
+
+  buf[res] = '\0';
+  return 0;
+}
+
+
+static int dav_symlink (const char *from, const char *to) {
+  int res;
+
+  try {
+    throwable dav_head(&server, to, NULL);
+    return -EEXIST;
+  } catch (CurlException, e) {
+    if (!(e->code == CURLE_HTTP_RETURNED_ERROR && (e->response_code == 404 || e->response_code == 403))) {
+      throw;
+    }
+  } onerror (e) { }
+
+  do_once {
+    res = dav_mknod(to, S_IFLNK | 0777, 0);
+    if (res) {
+      break;
+    }
+    res = dav_write(to, from, strlen(from), 0, NULL);
+    if (res < 0) {
+      break;
+    }
+    return 0;
+  }
+  // error
+  try {
+    dav_unlink(to);
+  } catch (e) {
+    Exception_fputs(e, stderr);
+  }
+  return res;
 }
 
 
@@ -413,7 +484,7 @@ static void *dav_init (struct fuse_conn_info *conn, struct fuse_config *cfg) {
     throwable dav_options(&server);
     DBG("The server is: %s/%s\n", server.server, server.version);
     DBG("The server support:");
-  #define X(o) if (server.o) DBG(" " # o);
+  #define X(o) if (server.o) { DBG(" " # o); }
     DAV_METHOD
   #undef X
     DBG("\n");
@@ -448,15 +519,17 @@ int dav_getoper (struct proto_operations *proto_oper, struct networkfs_opts *opt
   proto_oper->destroy         = dav_destroy;
   proto_oper->readdir         = dav_readdir;
   proto_oper->getattr         = dav_getattr;
-  proto_oper->chmod           = dav_chmod;
-  proto_oper->chown           = dav_chown;
   proto_oper->read            = dav_read;
   proto_oper->write           = dav_write;
-  proto_oper->mknod           = dav_mknod;
   proto_oper->mkdir           = dav_mkdir;
   proto_oper->rename          = dav_rename;
   proto_oper->unlink          = dav_unlink;
   proto_oper->rmdir           = dav_unlink;
+  proto_oper->chmod           = dav_chmod;
+  proto_oper->chown           = dav_chown;
+  proto_oper->mknod           = dav_mknod;
+  proto_oper->readlink        = dav_readlink;
+  proto_oper->symlink         = dav_symlink;
   proto_oper->create          = dav_create;
   proto_oper->open            = dav_open;
   proto_oper->release         = dav_release;

@@ -216,8 +216,8 @@ int __dav_move (struct DavServer *server, const char *from, const char *to, bool
           throwable list = __dav_header_if(server, list, from, RW_LOCK_WRITE);
         }
         throwable list = __dav_header_if(server, list, to, RW_LOCK_READ);
-        curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
       }
+      curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
       curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "MOVE");
       curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
       curl_easy_perform_or_die(curl);
