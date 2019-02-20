@@ -49,7 +49,7 @@ CLASS(Exception, {
 
 extern thread_local Exception ex;
 
-#define GENERATE_EXCEPTION_INIT(type, ...) type ## _init((type *) &ex, __FILE__, __LINE__, __func__, ## __VA_ARGS__)
+#define GENERATE_EXCEPTION_INIT(type, ...) type ## _init((type *) &ex, __FILE__, __func__, __LINE__, ## __VA_ARGS__)
 
 void Exception_copy (Exception *dst, const Exception *src);
 int Exception_fputs (const Exception *e, FILE *stream);
@@ -62,7 +62,14 @@ inline bool Exception_has (const Exception *e) {
 void Exception_dirtydestory (Exception *e);
 void Exception_destory (Exception *e);
 void Exception_destory_dynamic (BaseException *e_);
-int Exception_init (Exception *e, const char *file, unsigned line, const char *func, bool no_bt);
+int Exception_init (Exception *e, const char *file, const char *func, unsigned line, bool no_bt);
+
+inline int Exception_init_what (
+    Exception *e, const char *file, const char *func, unsigned line,
+    const char *what) {
+  e->what = strdup(what);
+  return Exception_init((Exception *) e, file, func, line, 0);
+}
 
 #define TEST_SUCCESS Exception_has(&ex)
 
@@ -73,12 +80,10 @@ typedef Exception UnspecifiedException;
 VTABLE_IMPL(Exception, UnspecifiedException);
 
 inline int UnspecifiedException_init (
-    UnspecifiedException *e, const char *file, unsigned line, const char *func,
-    char *what) {
-  e->what = strdup(what);
+    UnspecifiedException *e, const char *file, const char *func, unsigned line,
+    const char *what) {
   e->VTABLE(Exception) = &VTABLE_OF(Exception, UnspecifiedException);
-
-  return Exception_init((Exception *) e, file, line, func, 0);
+  return Exception_init_what((Exception *) e, file, func, line, what);
 }
 
 #define UnspecifiedException(msg) GENERATE_EXCEPTION_INIT(UnspecifiedException, msg)

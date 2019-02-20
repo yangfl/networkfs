@@ -223,8 +223,8 @@ static inline void options_set_default (void) {
 
 
 extern inline int NetworkFSException_init (
-    NetworkFSException *e, const char *file, unsigned line, const char *func,
-    char *what);
+    NetworkFSException *e, const char *file, const char *func, unsigned line,
+    const char *what);
 
 
 VTABLE_INIT(Exception, NetworkFSException) = {

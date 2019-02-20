@@ -2,7 +2,7 @@
 
 
 extern inline int MallocException_init (
-    MallocException *e, const char *file, unsigned line, const char *func,
+    MallocException *e, const char *file, const char *func, unsigned line,
     char *what);
 
 
@@ -26,4 +26,4 @@ VTABLE_INIT(Exception, MallocException) = {
 };
 
 
-extern inline void *malloc_e_snx (size_t size, char *file, unsigned line, const char *func, char *name);
+extern inline void *malloc_e_snx (size_t size, const char *file, const char *func, unsigned line, char *name);

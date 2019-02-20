@@ -24,16 +24,9 @@ void VTable_rand_init (void) {
 }
 
 
-void print_trace (void) {
-  void *array[32];
-  size_t size = backtrace(array, 32) - 3;
-  char **strings = backtrace_symbols(array + 3, size);
-
-  for (size_t i = 0; i < size; i++) {
-     printf("%s\n", strings[i]);
-   }
-
-  free(strings);
+static inline void print_trace (void) {
+  void *bt[32];
+  backtrace_symbols_fd(bt + 3, backtrace(bt, sizeof(bt)) - 3, fileno(stderr));
 }
 
 

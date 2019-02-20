@@ -82,10 +82,10 @@ int __dav_method (
     throwable scope (curl_slist, list) {
       if (server->options->use_lock && lock_type) {
         throwable list = __dav_header_if(server, list, path, lock_type);
-        curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
       }
       curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, method);
-      curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
+      curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
       curl_easy_perform_or_die(curl);
     }
 
@@ -118,11 +118,11 @@ static size_t __dav_head_callback (char *buffer, size_t size, size_t nitems, voi
 int dav_head (struct DavServer *server, const char *path, size_t *sizep) {
   with_curl (curl, server->baseuh, path, server->options) {
     curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "HEAD");
-    curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     if (sizep) {
       *sizep = 0;
-      curl_easy_setopt_or_die(curl, CURLOPT_HEADERDATA, sizep);
-      curl_easy_setopt_or_die(curl, CURLOPT_HEADERFUNCTION, __dav_head_callback);
+      curl_easy_setopt(curl, CURLOPT_HEADERDATA, sizep);
+      curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, __dav_head_callback);
     }
     curl_easy_perform_or_die(curl);
   }
@@ -139,8 +139,8 @@ ssize_t dav_get (struct DavServer *server, const char *path, char *data, size_t 
           curl_easy_setopt_or_die(curl, CURLOPT_RANGE, range);
         }
       }
-      curl_easy_setopt_or_die(curl, CURLOPT_WRITEDATA, &buf);
-      curl_easy_setopt_or_die(curl, CURLOPT_WRITEFUNCTION, Buffer_append);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
+      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, Buffer_append);
       curl_easy_perform_or_die(curl);
     }
     res = TEST_SUCCESS == 0 ? buf.offset : -TEST_SUCCESS;
@@ -156,15 +156,15 @@ int dav_put (struct DavServer *server, const char *path, const char *data, size_
         if (server->options->use_lock) {
           while (pthread_rwlock_rdlock(&server->filelock_tree_lock));
           throwable list = __dav_header_if(server, list, path, 1);
-          curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
+          curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
         }
-        curl_easy_setopt_or_die(curl, CURLOPT_UPLOAD, 1L);
-        curl_easy_setopt_or_die(curl, CURLOPT_READDATA, &buf);
-        curl_easy_setopt_or_die(curl, CURLOPT_READFUNCTION, Buffer_fetch);
+        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt(curl, CURLOPT_READDATA, &buf);
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, Buffer_fetch);
         throwable with_range (range, offset, size) {
           curl_easy_setopt_or_die(curl, CURLOPT_RANGE, range);
         }
-        curl_easy_setopt_or_die(curl, CURLOPT_INFILESIZE, (long) size);
+        curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long) size);
         curl_easy_perform_or_die(curl);
         if (server->options->use_lock) {
           pthread_rwlock_unlock(&server->filelock_tree_lock);
@@ -217,9 +217,9 @@ int __dav_move (struct DavServer *server, const char *from, const char *to, bool
         }
         throwable list = __dav_header_if(server, list, to, RW_LOCK_READ);
       }
-      curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
       curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "MOVE");
-      curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
+      curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
       curl_easy_perform_or_die(curl);
       if (server->options->use_lock) {
         pthread_rwlock_unlock(&server->filelock_tree_lock);
@@ -242,9 +242,9 @@ int dav_copy (struct DavServer *server, const char *from, const char *to) {
         while (pthread_rwlock_rdlock(&server->filelock_tree_lock));
         throwable list = __dav_header_if(server, list, to, RW_LOCK_READ);
       }
-      curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
       curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "COPY");
-      curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
+      curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
       curl_easy_perform_or_die(curl);
       if (server->options->use_lock) {
         pthread_rwlock_unlock(&server->filelock_tree_lock);
@@ -285,15 +285,15 @@ int dav_propfind (struct DavServer *server, const char *path, int depth, void *b
         throwable scope (curl_slist, list, depth_header) {
           list = curl_slist_append_weak(list, PREFER_MINIMAL);
           list = curl_slist_append_weak(list, CONTENT_TYPE_XML);
-          curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
+          curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
         #if 1
-          curl_easy_setopt_or_die(curl, CURLOPT_UPLOAD, 1L);
-          curl_easy_setopt_or_die(curl, CURLOPT_READDATA, &propfind_buf);
-          curl_easy_setopt_or_die(curl, CURLOPT_READFUNCTION, Buffer_fetch);
-          curl_easy_setopt_or_die(curl, CURLOPT_INFILESIZE, (long) propfind_buf.size);
+          curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+          curl_easy_setopt(curl, CURLOPT_READDATA, &propfind_buf);
+          curl_easy_setopt(curl, CURLOPT_READFUNCTION, Buffer_fetch);
+          curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long) propfind_buf.size);
         #endif
-          curl_easy_setopt_or_die(curl, CURLOPT_WRITEDATA, &ctxt);
-          curl_easy_setopt_or_die(curl, CURLOPT_WRITEFUNCTION, curl_parse_xml);
+          curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ctxt);
+          curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_parse_xml);
           curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "PROPFIND");
           curl_easy_perform_or_die(curl);
         }
@@ -456,11 +456,11 @@ int dav_proppatch (struct DavServer *server, const char *path, const char *key, 
     throwable with_curl (curl, server->baseuh, path, server->options) {
       throwable scope (curl_slist, list, CONTENT_TYPE_XML) {
         list = curl_slist_append_weak(list, PREFER_MINIMAL);
-        curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
-        curl_easy_setopt_or_die(curl, CURLOPT_UPLOAD, 1L);
-        curl_easy_setopt_or_die(curl, CURLOPT_READDATA, &buf);
-        curl_easy_setopt_or_die(curl, CURLOPT_READFUNCTION, Buffer_fetch);
-        curl_easy_setopt_or_die(curl, CURLOPT_INFILESIZE, (long) buf.size);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt(curl, CURLOPT_READDATA, &buf);
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, Buffer_fetch);
+        curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long) buf.size);
         curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "PROPPATCH");
         curl_easy_perform_or_die(curl);
       }
@@ -513,19 +513,19 @@ static SimpleString *__dav_lock (struct DavServer *server, const char *path) {
           //throwable scope (curl_slist, list, "Timeout: Infinite, Second-4100000000") {
           throwable scope (curl_slist, list, "Timeout: Second-600") {
             list = curl_slist_append_weak(list, CONTENT_TYPE_XML);
-            curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
-            curl_easy_setopt_or_die(curl, CURLOPT_UPLOAD, 1L);
-            curl_easy_setopt_or_die(curl, CURLOPT_HEADERDATA, &token);
-            curl_easy_setopt_or_die(curl, CURLOPT_HEADERFUNCTION, __dav_lock_callback);
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+            curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+            curl_easy_setopt(curl, CURLOPT_HEADERDATA, &token);
+            curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, __dav_lock_callback);
           #if 1
-            curl_easy_setopt_or_die(curl, CURLOPT_WRITEDATA, &ctxt);
-            curl_easy_setopt_or_die(curl, CURLOPT_WRITEFUNCTION, curl_parse_xml);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ctxt);
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_parse_xml);
           #else
-            curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
+            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
           #endif
-            curl_easy_setopt_or_die(curl, CURLOPT_READDATA, &buf);
-            curl_easy_setopt_or_die(curl, CURLOPT_READFUNCTION, Buffer_fetch);
-            curl_easy_setopt_or_die(curl, CURLOPT_INFILESIZE, (long) buf.size);
+            curl_easy_setopt(curl, CURLOPT_READDATA, &buf);
+            curl_easy_setopt(curl, CURLOPT_READFUNCTION, Buffer_fetch);
+            curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long) buf.size);
             curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "LOCK");
             curl_easy_perform_or_die(curl);
           }
@@ -600,7 +600,7 @@ static int __dav_unlock (struct DavServer *server, const char *path, SimpleStrin
     char token_header[sizeof("Lock-Token: <>") + token->len];
     snprintf(token_header, sizeof(token_header), "Lock-Token: <%s>", token->str);
     throwable scope (curl_slist, list, token_header) {
-      curl_easy_setopt_or_die(curl, CURLOPT_HTTPHEADER, list);
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
       curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "UNLOCK");
       curl_easy_perform_or_die(curl);
     }
@@ -745,10 +745,10 @@ int dav_options (struct DavServer *server) {
       if (server->options->initial_timeout) {
         curl_easy_setopt_or_die(curl, CURLOPT_TIMEOUT, server->options->initial_timeout);
       }
-      curl_easy_setopt_or_die(curl, CURLOPT_NOBODY, 1L);
+      curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
 
       /* handle redirect */
-      curl_easy_setopt_or_die(curl, CURLOPT_FOLLOWLOCATION, 0L);
+      curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
       curl_easy_perform_or_die(curl);
 
       long response_code;
@@ -764,7 +764,7 @@ int dav_options (struct DavServer *server) {
         }
       }
 
-      curl_easy_setopt_or_die(curl, CURLOPT_FOLLOWLOCATION, 1L);
+      curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
       /* get options */
     //#if CURL_AT_LEAST_VERSION(7, 63, 0)
@@ -778,8 +778,8 @@ int dav_options (struct DavServer *server) {
     //#endif
 
       curl_easy_setopt_or_die(curl, CURLOPT_CUSTOMREQUEST, "OPTIONS");
-      curl_easy_setopt_or_die(curl, CURLOPT_HEADERDATA, server);
-      curl_easy_setopt_or_die(curl, CURLOPT_HEADERFUNCTION, __dav_options_callback);
+      curl_easy_setopt(curl, CURLOPT_HEADERDATA, server);
+      curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, __dav_options_callback);
       curl_easy_perform_or_die(curl);
     }
 

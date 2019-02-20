@@ -146,7 +146,7 @@ void Exception_destory_dynamic (BaseException *e_) {
 }
 
 
-int Exception_init (Exception *e, const char *file, unsigned line, const char *func, bool no_bt) {
+int Exception_init (Exception *e, const char *file, const char *func, unsigned line, bool no_bt) {
   if unlikely (e->set != false) {
     Exception_dirtydestory(e);
   }
@@ -163,12 +163,16 @@ int Exception_init (Exception *e, const char *file, unsigned line, const char *f
   return 0;
 }
 
+extern inline int Exception_init_what (
+    Exception *e, const char *file, const char *func, unsigned line,
+    const char *what);
+
 
 /* unspecified */
 
 extern inline int UnspecifiedException_init (
-    UnspecifiedException *e, const char *file, unsigned line, const char *func,
-    char *what);
+    UnspecifiedException *e, const char *file, const char *func, unsigned line,
+    const char *what);
 
 
 VTABLE_INIT(Exception, UnspecifiedException) = {

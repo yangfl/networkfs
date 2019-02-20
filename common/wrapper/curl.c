@@ -24,7 +24,7 @@ static void __attribute__((constructor)) curl_load (void) {
 
 
 int CurlException_init (
-    CurlException *e, const char *file, unsigned line, const char *func,
+    CurlException *e, const char *file, const char *func, unsigned line,
     CURLcode code, enum CURLaction action, ...) {
   bool no_bt = false;
 
@@ -54,7 +54,7 @@ int CurlException_init (
 
   va_end(args);
 
-  return Exception_init((Exception *) e, file, line, func, no_bt);
+  return Exception_init((Exception *) e, file, func, line, no_bt);
 }
 
 
@@ -97,7 +97,7 @@ VTABLE_INIT(Exception, CurlException) = {
 
 
 int CurlUrlException_init (
-    CurlUrlException *e, const char *file, unsigned line, const char *func,
+    CurlUrlException *e, const char *file, const char *func, unsigned line,
     CURLUcode code, enum CURLUaction action, ...) {
   e->code = code;
   e->action = action;
@@ -110,7 +110,7 @@ int CurlUrlException_init (
     va_end(args);
   }
 
-  return Exception_init((Exception *) e, file, line, func, 0);
+  return Exception_init((Exception *) e, file, func, line, 0);
 }
 
 
@@ -258,7 +258,7 @@ CURL *curl_easy_init_common (
     }
 
     ((CurlException *) &ex)->error_buf[0] = '\0';
-    curl_easy_setopt_or_die(this, CURLOPT_ERRORBUFFER, ((CurlException *) &ex)->error_buf);
+    curl_easy_setopt(this, CURLOPT_ERRORBUFFER, ((CurlException *) &ex)->error_buf);
 
     throwable scope (CURLU, clean_url, url) {
       if likely (path) {
@@ -286,7 +286,7 @@ CURL *curl_easy_init_common (
       }
 
       if (options->ip_version) {
-        curl_easy_setopt_or_die(this, CURLOPT_IPRESOLVE, options->ip_version);
+        curl_easy_setopt(this, CURLOPT_IPRESOLVE, options->ip_version);
       }
 
       if (options->proxy) {
@@ -298,7 +298,7 @@ CURL *curl_easy_init_common (
           curl_easy_setopt_or_die(this, CURLOPT_PROXYAUTH, options->proxyauth);
         }
         if (options->proxytunnel) {
-          curl_easy_setopt_or_die(this, CURLOPT_HTTPPROXYTUNNEL, 1L);
+          curl_easy_setopt(this, CURLOPT_HTTPPROXYTUNNEL, 1L);
         }
         curl_easy_setopt_or_die(this, CURLOPT_PROXYUSERPWD, options->proxy_userpwd);
       }
@@ -314,7 +314,7 @@ CURL *curl_easy_init_common (
           curl_easy_setopt_or_die(this, CURLOPT_SSL_VERIFYHOST, 1L);
         }
         if (options->no_verify_peer) {
-          curl_easy_setopt_or_die(this, CURLOPT_SSL_VERIFYPEER, 0L);
+          curl_easy_setopt(this, CURLOPT_SSL_VERIFYPEER, 0L);
         }
         if (options->cacert) {
           curl_easy_setopt_or_die(this, CURLOPT_CAINFO, options->cacert);
@@ -340,9 +340,9 @@ CURL *curl_easy_init_common (
       }
     }
     curl_easy_setopt_or_die(this, CURLOPT_USERAGENT, NETWORKFS_NAME "/" NETWORKFS_VERSION);
-    curl_easy_setopt_or_die(this, CURLOPT_FAILONERROR, 1L);
-    curl_easy_setopt_or_die(this, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt_or_die(this, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
+    curl_easy_setopt(this, CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(this, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(this, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
   } onerror (e) {
     curl_easy_cleanup(this);
     this = NULL;
@@ -354,14 +354,15 @@ CURL *curl_easy_init_common (
 
 void curl_easy_cleanup_common (CURL *this) {
   if (this) {
-    hideE try {
-      auto node = malloc_et(LinkedList);
-      check;
+    do_once {
+      auto node = malloc_t(LinkedList);
+      if unlikely (node == NULL) {
+        fprintf(stderr, "curl_easy_cleanup_common malloc failed\n");
+        curl_easy_cleanup(this);
+        break;
+      }
       node->value = this;
       Stack_push(&curl_handler_stack, (LinkedListHead *) node);
-    } catch (e) {
-      Exception_fputs(e, stderr);
-      curl_easy_cleanup(this);
     }
   }
 }

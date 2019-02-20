@@ -16,12 +16,10 @@ typedef Exception NetworkFSException;
 VTABLE_IMPL(Exception, NetworkFSException);
 
 inline int NetworkFSException_init (
-    NetworkFSException *e, const char *file, unsigned line, const char *func,
-    char *what) {
-  e->what = strdup(what);
+    NetworkFSException *e, const char *file, const char *func, unsigned line,
+    const char *what) {
   e->VTABLE(Exception) = &VTABLE_OF(Exception, NetworkFSException);
-
-  return Exception_init((Exception *) e, file, line, func, 0);
+  return Exception_init_what((Exception *) e, file, func, line, what);
 }
 
 #define NetworkFSException(msg) GENERATE_EXCEPTION_INIT(NetworkFSException, msg)
