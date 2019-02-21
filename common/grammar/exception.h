@@ -67,8 +67,13 @@ int Exception_init (Exception *e, const char *file, const char *func, unsigned l
 inline int Exception_init_what (
     Exception *e, const char *file, const char *func, unsigned line,
     const char *what) {
+  int res = Exception_init((Exception *) e, file, func, line, 0);
+  if unlikely (res) {
+    return res;
+  }
+
   e->what = strdup(what);
-  return Exception_init((Exception *) e, file, func, line, 0);
+  return 0;
 }
 
 #define TEST_SUCCESS Exception_has(&ex)
@@ -82,8 +87,13 @@ VTABLE_IMPL(Exception, UnspecifiedException);
 inline int UnspecifiedException_init (
     UnspecifiedException *e, const char *file, const char *func, unsigned line,
     const char *what) {
+  int res = Exception_init_what((Exception *) e, file, func, line, what);
+  if unlikely (res) {
+    return res;
+  }
+
   e->VTABLE(Exception) = &VTABLE_OF(Exception, UnspecifiedException);
-  return Exception_init_what((Exception *) e, file, func, line, what);
+  return 0;
 }
 
 #define UnspecifiedException(msg) GENERATE_EXCEPTION_INIT(UnspecifiedException, msg)

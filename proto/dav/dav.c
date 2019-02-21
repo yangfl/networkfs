@@ -123,7 +123,7 @@ static int dav_read (const char *path, char *buf, size_t size, off_t offset,
   }
 
   ssize_t read_size = dav_get(&server, path, buf, size, offset);
-  if (read_size < 0) {
+  if unlikely (read_size < 0) {
     if (issubtype(Exception, &ex, CurlException) &&
         ((CurlException *) &ex)->code == CURLE_HTTP_RETURNED_ERROR &&
         ((CurlException *) &ex)->response_code == 416) {
@@ -146,7 +146,7 @@ static int dav_write (const char *path, const char *buf, size_t size,
   do_once {
     res = dav_put(&server, path, buf, size, offset);
 
-    if (res == 0) {
+    if likely (res == 0) {
       // success
       break;
     }
@@ -163,21 +163,21 @@ static int dav_write (const char *path, const char *buf, size_t size,
     // 416, manual padding
     size_t real_size;
     res = dav_head(&server, path, &real_size);
-    if (res) {
+    if unlikely (res) {
       break;
     }
     if (real_size < (unsigned) offset) {
       char padding_buf[offset - real_size];
       memset(padding_buf, 0, sizeof(padding_buf));
       res = dav_put(&server, path, padding_buf, sizeof(padding_buf), real_size);
-      if (res) {
+      if unlikely (res) {
         break;
       }
     }
     res = dav_put(&server, path, buf, size, offset);
   }
 
-  if (res) {
+  if unlikely (res) {
     return dav_exception_map();
   } else {
     return size;
@@ -244,7 +244,7 @@ static int dav_chown (const char *path, uid_t uid, gid_t gid, struct fuse_file_i
 
 static int dav_mknod (const char *path, mode_t mode, dev_t rdev) {
     DBG("dav_mknod %s\n",path);
-  if (S_ISDIR(mode)) {
+  if unlikely (S_ISDIR(mode)) {
     return -EINVAL;
   }
 
@@ -270,7 +270,7 @@ static int dav_readlink (const char *path, char *buf, size_t size) {
   int res;
 
   res = dav_read(path, buf, size - 1, 0, NULL);
-  if (res < 0) {
+  if unlikely (res < 0) {
     return res;
   }
 
@@ -293,11 +293,11 @@ static int dav_symlink (const char *from, const char *to) {
 
   do_once {
     res = dav_mknod(to, S_IFLNK | 0777, 0);
-    if (res) {
+    if unlikely (res) {
       break;
     }
     res = dav_write(to, from, strlen(from), 0, NULL);
-    if (res < 0) {
+    if unlikely (res < 0) {
       break;
     }
     return 0;
@@ -318,7 +318,7 @@ static int dav_truncate (const char *path, off_t size, struct fuse_file_info *fi
 
   struct stat st;
   res = dav_getattr(path, &st, NULL);
-  if (res) {
+  if unlikely (res) {
     return res;
   }
   if (st.st_size == size) {
@@ -327,28 +327,28 @@ static int dav_truncate (const char *path, off_t size, struct fuse_file_info *fi
 
   if (size == 0) {
     res = dav_delete(&server, path);
-    if (res) {
+    if unlikely (res) {
       return dav_exception_map();
     }
     res = dav_put_simple(&server, path);
-    if (res) {
+    if unlikely (res) {
       return dav_exception_map();
     }
     res = dav_chmod(path, st.st_mode, fi);
   } else {
     size_t real_size;
     res = dav_head(&server, path, &real_size);
-    if (res) {
+    if unlikely (res) {
       return dav_exception_map();
     }
     if ((unsigned) size < real_size / 2) {
       char buf[size];
       res = dav_read(path, buf, size, 0, fi);
-      if (res) {
+      if unlikely (res) {
         return res;
       }
       res = dav_unlink(path);
-      if (res) {
+      if unlikely (res) {
         return res;
       }
       res = dav_put(&server, path, buf, size, 0);
@@ -395,7 +395,7 @@ static int dav_create (const char *path, mode_t mode, struct fuse_file_info *fi)
   int res;
 
   res = dav_mknod(path, mode, 0);
-  if (res) {
+  if unlikely (res) {
     return res;
   }
 
@@ -443,32 +443,32 @@ static ssize_t dav_copy_file_range (
   char file_out_before[offset_out];
   if (sizeof(file_out_before)) {
     res = dav_read(path_out, file_out_before, sizeof(file_out_before), 0, fi_out);
-    if (res) {
+    if unlikely (res) {
       return res;
     }
   }
   char file_out_after[offset_out + len < (unsigned) st_out.st_size ? st_out.st_size - len - offset_out : 0];
   if (sizeof(file_out_after)) {
     res = dav_read(path_out, file_out_after, sizeof(file_out_after), offset_out, fi_out);
-    if (res) {
+    if unlikely (res) {
       return res;
     }
   }
 
   res = dav_exception_test(dav_copy(&server, path_in, path_out));
-  if (res) {
+  if unlikely (res) {
     return res;
   }
 
   if (sizeof(file_out_before)) {
     res = dav_write(path_out, file_out_before, sizeof(file_out_before), 0, fi_out);
-    if (res) {
+    if unlikely (res) {
       return res;
     }
   }
   if (sizeof(file_out_after)) {
     res = dav_write(path_out, file_out_after, sizeof(file_out_after), offset_out, fi_out);
-    if (res) {
+    if unlikely (res) {
       return res;
     }
   }

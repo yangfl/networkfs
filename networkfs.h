@@ -18,8 +18,13 @@ VTABLE_IMPL(Exception, NetworkFSException);
 inline int NetworkFSException_init (
     NetworkFSException *e, const char *file, const char *func, unsigned line,
     const char *what) {
+  int res = Exception_init_what((Exception *) e, file, func, line, what);
+  if unlikely (res) {
+    return res;
+  }
+
   e->VTABLE(Exception) = &VTABLE_OF(Exception, NetworkFSException);
-  return Exception_init_what((Exception *) e, file, func, line, what);
+  return 0;
 }
 
 #define NetworkFSException(msg) GENERATE_EXCEPTION_INIT(NetworkFSException, msg)

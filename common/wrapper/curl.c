@@ -28,6 +28,17 @@ int CurlException_init (
     CURLcode code, enum CURLaction action, ...) {
   bool no_bt = false;
 
+  if (e->action == CURL_PERFORM) {
+    if (e->code == CURLE_HTTP_RETURNED_ERROR) {
+      no_bt = true;
+    }
+  }
+
+  int res = Exception_init((Exception *) e, file, func, line, no_bt);
+  if unlikely (res) {
+    return res;
+  }
+
   e->code = code;
   e->action = action;
   e->VTABLE(Exception) = &VTABLE_OF(Exception, CurlException);
@@ -45,7 +56,6 @@ int CurlException_init (
     case CURL_PERFORM:
       if (e->code == CURLE_HTTP_RETURNED_ERROR) {
         curl_easy_getinfo(va_arg(args, typeof(CURL *)), CURLINFO_RESPONSE_CODE, &e->response_code);
-        no_bt = true;
       }
       break;
     default:
@@ -54,7 +64,7 @@ int CurlException_init (
 
   va_end(args);
 
-  return Exception_init((Exception *) e, file, func, line, no_bt);
+  return 0;
 }
 
 
@@ -99,6 +109,11 @@ VTABLE_INIT(Exception, CurlException) = {
 int CurlUrlException_init (
     CurlUrlException *e, const char *file, const char *func, unsigned line,
     CURLUcode code, enum CURLUaction action, ...) {
+  int res = Exception_init((Exception *) e, file, func, line, 0);
+  if unlikely (res) {
+    return res;
+  }
+
   e->code = code;
   e->action = action;
   e->VTABLE(Exception) = &VTABLE_OF(Exception, CurlUrlException);
@@ -110,7 +125,7 @@ int CurlUrlException_init (
     va_end(args);
   }
 
-  return Exception_init((Exception *) e, file, func, line, 0);
+  return 0;
 }
 
 
@@ -353,16 +368,15 @@ CURL *curl_easy_init_common (
 
 
 void curl_easy_cleanup_common (CURL *this) {
-  if (this) {
-    do_once {
-      auto node = malloc_t(LinkedList);
-      if unlikely (node == NULL) {
-        fprintf(stderr, "curl_easy_cleanup_common malloc failed\n");
-        curl_easy_cleanup(this);
-        break;
-      }
-      node->value = this;
-      Stack_push(&curl_handler_stack, (LinkedListHead *) node);
-    }
+  PROTECT_RETURN(this);
+
+  auto node = malloc_t(LinkedList);
+  if unlikely (node == NULL) {
+    fprintf(stderr, "curl_easy_cleanup_common malloc failed\n");
+    curl_easy_cleanup(this);
+    return;
   }
+
+  node->value = this;
+  Stack_push(&curl_handler_stack, (LinkedListHead *) node);
 }

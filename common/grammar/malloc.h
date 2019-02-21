@@ -12,10 +12,14 @@ VTABLE_IMPL(Exception, MallocException);
 inline int MallocException_init (
     MallocException *e, const char *file, const char *func, unsigned line,
     char *what) {
+  int res = Exception_init((Exception *) e, file, func, line, 0);
+  if unlikely (res) {
+    return res;
+  }
+
   e->what = what;
   e->VTABLE(Exception) = &VTABLE_OF(Exception, MallocException);
-
-  return Exception_init((Exception *) e, file, func, line, 0);
+  return 0;
 }
 
 #define MallocException(msg) GENERATE_EXCEPTION_INIT(MallocException, msg)

@@ -33,9 +33,9 @@ time_t xmlParserTimeNode (xmlNodePtr const node) {
             break;
           }
 
-          if (node->children && node->children->content) {
+          if likely (node->children && node->children->content) {
             struct tm tm;
-            if (strptime((const char *) node->children->content, format, &tm)) {
+            if likely (strptime((const char *) node->children->content, format, &tm)) {
               return mktime(&tm) - timezone;
             }
           }
@@ -49,18 +49,18 @@ time_t xmlParserTimeNode (xmlNodePtr const node) {
 
 
 size_t curl_parse_xml (char *ptr, size_t size, size_t nmemb, void *data) {
-  if (data == NULL || nmemb == 0) {
+  if unlikely (data == NULL || nmemb == 0) {
     return nmemb;
   }
 
   try {
     xmlParserCtxtPtr *ctxt_p = (xmlParserCtxtPtr *) data;
-    if (*ctxt_p == NULL) {
+    if unlikely (*ctxt_p == NULL) {
       xmlKeepBlanksDefault(0);
       *ctxt_p = xmlCreatePushParserCtxt(NULL, NULL, ptr, nmemb, NULL);
       condition_throw(*ctxt_p) MallocException("xmlCreatePushParserCtxt");
     } else {
-      if (xmlParseChunk(*ctxt_p, ptr, nmemb, 0)) {
+      if unlikely (xmlParseChunk(*ctxt_p, ptr, nmemb, 0)) {
         xmlParserError(*ctxt_p, "xmlParseChunk");
         MallocException("xmlParseChunk");
       }

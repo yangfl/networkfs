@@ -257,7 +257,7 @@ int dav_copy (struct DavServer *server, const char *from, const char *to) {
 
 int dav_propfind (struct DavServer *server, const char *path, int depth, void *buf, fuse_fill_dir_t filler) {
 #if 1
-  const char propfind_body[] = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+  static const char propfind_body[] = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
   "<D:propfind xmlns:D=\"DAV:\" xmlns:N=\"" NETWORKFS_XML_NS "\">\r\n"
     "<D:prop>\r\n"
       "<D:resourcetype/>"
@@ -301,8 +301,8 @@ int dav_propfind (struct DavServer *server, const char *path, int depth, void *b
         xmlParseChunk(ctxt, NULL, 0, 1);
 
         long response_code;
-        curl_easy_getinfo_or_die(curl, CURLINFO_RESPONSE_CODE, &response_code);
-        if (response_code != 207) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+        if unlikely (response_code != 207) {
           break;
         }
 
@@ -310,7 +310,7 @@ int dav_propfind (struct DavServer *server, const char *path, int depth, void *b
         condition_throw(ctxt->wellFormed) UnspecifiedException("Failed to parse");
 
         const char *encoded_baseurl;
-        curl_easy_getinfo_or_die(curl, CURLINFO_EFFECTIVE_URL, &encoded_baseurl);
+        curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &encoded_baseurl);
 
         foreach(Node) (response, xmlDocGetRootElement(doc)) {
           if (xmlStrcmp(response->name, BAD_CAST "response") != 0) {
@@ -436,7 +436,7 @@ int dav_propfind (struct DavServer *server, const char *path, int depth, void *b
 
 
 int dav_proppatch (struct DavServer *server, const char *path, const char *key, const char *value) {
-  const char proppatch_body_template[] = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+  static const char proppatch_body_template[] = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
   "<D:propertyupdate xmlns:D=\"DAV:\" xmlns:N=\"" NETWORKFS_XML_NS "\">\r\n"
     "<D:%s>\r\n"           //     set                remove
       "<D:prop>"  // no newline here!
@@ -492,7 +492,7 @@ static size_t __dav_lock_callback (char *buffer, size_t size, size_t nitems, voi
 
 
 static SimpleString *__dav_lock (struct DavServer *server, const char *path) {
-  const char lock_body[] = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+  static const char lock_body[] = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
   "<D:lockinfo xmlns:D=\"DAV:\">\r\n"
     "<D:lockscope><D:exclusive/></D:lockscope>\r\n"
     "<D:locktype><D:write/></D:locktype>\r\n"
@@ -752,12 +752,12 @@ int dav_options (struct DavServer *server) {
       curl_easy_perform_or_die(curl);
 
       long response_code;
-      curl_easy_getinfo_or_die(curl, CURLINFO_RESPONSE_CODE, &response_code);
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
       if (response_code / 100 == 3) {
         /* a redirect implies a 3xx response code */
         curl_char *baseurl = NULL;
-        curl_easy_getinfo_or_die(curl, CURLINFO_REDIRECT_URL, &baseurl);
+        curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL, &baseurl);
         if (baseurl) {
           printf("Redirected to: %s\n", baseurl);
           curl_url_set_or_die(server->baseuh, CURLUPART_URL, baseurl, 0);

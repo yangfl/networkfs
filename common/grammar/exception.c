@@ -163,6 +163,7 @@ int Exception_init (Exception *e, const char *file, const char *func, unsigned l
   return 0;
 }
 
+
 extern inline int Exception_init_what (
     Exception *e, const char *file, const char *func, unsigned line,
     const char *what);
